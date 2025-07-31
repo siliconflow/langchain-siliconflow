@@ -2,7 +2,6 @@ from typing import Any, Dict
 
 import openai
 from langchain_core.utils import convert_to_secret_str, get_from_dict_or_env
-import os.path
 
 def validate_environment(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validate and prepare SiliconFlow API key and initialize clients."""
