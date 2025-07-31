@@ -8,6 +8,11 @@ on:
 
 jobs:
   test:
+    strategy:
+      matrix:
+        job:
+          - { endpoint: "https://api.siliconflow.com", SILICONFLOW_API_KEY: secrets.SILICONFLOW_GLOBAL_API_KEY }
+          - { endpoint: "https://api.siliconflow.cn", SILICONFLOW_API_KEY: secrets.SILICONFLOW_CN_API_KEY }
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -21,5 +26,5 @@ jobs:
       run: poetry install --with lint,typing,test,test_integration
     - name: Run tests
       env:
-        SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_GLOBAL_API_KEY }}
+        SILICONFLOW_API_KEY: ${{ matrix.job.SILICONFLOW_API_KEY }}
       run: poetry run pytest
