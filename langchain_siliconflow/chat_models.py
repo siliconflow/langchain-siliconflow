@@ -29,6 +29,8 @@ from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResu
 from langchain_core.utils import convert_to_secret_str, get_from_dict_or_env
 from pydantic import Field, SecretStr, model_validator
 
+from langchain_siliconflow.utils import validate_environment
+
 
 def _convert_message_to_dict(message: BaseMessage) -> dict:
     if isinstance(message, ChatMessage):
@@ -111,23 +113,7 @@ class ChatSiliconFlow(BaseChatModel):
     @model_validator(mode="before")
     @classmethod
     def validate_environment(cls, values: Dict) -> Dict:
-        values["siliconflow_api_key"] = convert_to_secret_str(
-            get_from_dict_or_env(
-                values,
-                "siliconflow_api_key",
-                "SILICONFLOW_API_KEY",
-            )
-        )
-        api_key = values["siliconflow_api_key"].get_secret_value()
-        values["client"] = openai.OpenAI(
-            api_key=api_key,
-            base_url="https://api.siliconflow.com",
-        )
-        values["async_client"] = openai.AsyncOpenAI(
-            api_key=api_key,
-            base_url="https://api.siliconflow.com",
-        )
-        return values
+        return validate_environment(values)
 
     @property
     def _llm_type(self) -> str:
