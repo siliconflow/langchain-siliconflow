@@ -18,7 +18,7 @@ jobs:
     - name: Install Poetry
       run: pip install poetry
     - name: Install dependencies
-      run: poetry install --no-interaction --no-ansi
+      run: poetry install --with lint,typing,test,test_integration
     - name: Run tests
       env:
         SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_GLOBAL_API_KEY }}
