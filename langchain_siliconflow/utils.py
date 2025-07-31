@@ -2,7 +2,7 @@ from typing import Any, Dict
 
 import openai
 from langchain_core.utils import convert_to_secret_str, get_from_dict_or_env
-
+import os.path
 
 def validate_environment(values: Dict[str, Any]) -> Dict[str, Any]:
     """Validate and prepare SiliconFlow API key and initialize clients."""
@@ -20,6 +20,7 @@ def validate_environment(values: Dict[str, Any]) -> Dict[str, Any]:
         "SILICONFLOW_BASE_URL",
         "https://api.siliconflow.com"
     )
+    base_url = os.path.join(base_url, "v1") if not base_url.endswith("/v1") else base_url
     values["client"] = openai.OpenAI(
         api_key=api_key,
         base_url=base_url,
