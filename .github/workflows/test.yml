@@ -16,7 +16,7 @@ jobs:
       fail-fast: false
       matrix:
         endpoint:
-          - "https://api.siliconflow.com"
+          - "https://api.siliconflow.com/v1"
           - "https://api.siliconflow.cn"
     runs-on: ubuntu-latest
     steps:
