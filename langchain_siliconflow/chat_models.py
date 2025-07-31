@@ -27,6 +27,30 @@ from langchain_core.messages import (
 from langchain_core.messages.ai import UsageMetadata
 from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
 from langchain_core.utils import convert_to_secret_str, get_from_dict_or_env
+from typing import Union
+
+
+def _create_chat_result(
+    message: BaseMessage,
+    usage: Union[dict, None],
+    model_name: str
+) -> ChatResult:
+    """Create a ChatResult with standardized metadata."""
+    if usage:
+        message.usage_metadata = {
+            "input_tokens": usage.prompt_tokens,
+            "output_tokens": usage.completion_tokens,
+            "total_tokens": usage.total_tokens,
+            "input_token_details": {},
+            "output_token_details": {},
+            "model_name": model_name
+        }
+    message.response_metadata = {"model_name": model_name}
+    return ChatResult(
+        generations=[ChatGeneration(message=message)],
+        response_metadata={"model_name": model_name}
+    )
+
 from pydantic import Field, SecretStr, model_validator
 
 from langchain_siliconflow.utils import validate_environment
@@ -141,7 +165,7 @@ class ChatSiliconFlow(BaseChatModel):
             **kwargs,
         )
         message = _convert_dict_to_message(response.choices[0].message.model_dump())
-        return ChatResult(generations=[ChatGeneration(message=message)])
+        return _create_chat_result(message, response.usage, self.model_name)
 
     def _stream(
         self,
@@ -151,6 +175,7 @@ class ChatSiliconFlow(BaseChatModel):
         **kwargs: Any,
     ) -> Iterator[ChatGenerationChunk]:
         message_dicts = [_convert_message_to_dict(m) for m in messages]
+        first_chunk = True
         for chunk in self.client.chat.completions.create(
             model=self.model_name,
             messages=message_dicts,
@@ -160,7 +185,17 @@ class ChatSiliconFlow(BaseChatModel):
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta
-            yield ChatGenerationChunk(message=AIMessageChunk(content=delta.content))
+            msg = AIMessageChunk(content=delta.content)
+            if first_chunk and chunk.usage:
+                msg.usage_metadata = {
+                    "input_tokens": chunk.usage.prompt_tokens,
+                    "output_tokens": chunk.usage.completion_tokens,
+                    "total_tokens": chunk.usage.total_tokens,
+                    "model_name": self.model_name
+                }
+            msg.response_metadata = {"model_name": self.model_name}
+            yield ChatGenerationChunk(message=msg)
+            first_chunk = False
 
     async def _agenerate(
         self,
@@ -176,7 +211,7 @@ class ChatSiliconFlow(BaseChatModel):
             **kwargs,
         )
         message = _convert_dict_to_message(response.choices[0].message.model_dump())
-        return ChatResult(generations=[ChatGeneration(message=message)])
+        return _create_chat_result(message, response.usage, self.model_name)
 
     async def _astream(
         self,
@@ -186,6 +221,7 @@ class ChatSiliconFlow(BaseChatModel):
         **kwargs: Any,
     ) -> AsyncIterator[ChatGenerationChunk]:
         message_dicts = [_convert_message_to_dict(m) for m in messages]
+        first_chunk = True
         async for chunk in await self.async_client.chat.completions.create(
             model=self.model_name,
             messages=message_dicts,
@@ -195,4 +231,14 @@ class ChatSiliconFlow(BaseChatModel):
             if not chunk.choices:
                 continue
             delta = chunk.choices[0].delta
-            yield ChatGenerationChunk(message=AIMessageChunk(content=delta.content))
+            msg = AIMessageChunk(content=delta.content)
+            if first_chunk and chunk.usage:
+                msg.usage_metadata = {
+                    "input_tokens": chunk.usage.prompt_tokens,
+                    "output_tokens": chunk.usage.completion_tokens,
+                    "total_tokens": chunk.usage.total_tokens,
+                    "model_name": self.model_name
+                }
+            msg.response_metadata = {"model_name": self.model_name}
+            yield ChatGenerationChunk(message=msg)
+            first_chunk = False
