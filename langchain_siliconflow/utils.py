@@ -14,7 +14,7 @@ def validate_environment(values: Dict[str, Any]) -> Dict[str, Any]:
         )
     )
     api_key = values["siliconflow_api_key"].get_secret_value()
-    base_url = "https://api.siliconflow.com/v1"
+    base_url = "https://api.siliconflow.com"
     values["client"] = openai.OpenAI(
         api_key=api_key,
         base_url=base_url,
