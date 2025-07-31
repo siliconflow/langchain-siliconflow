@@ -18,6 +18,7 @@ jobs:
         endpoint:
           - "https://api.siliconflow.com/v1"
           - "https://api.siliconflow.cn"
+          - default
     runs-on: ubuntu-latest
     steps:
     - uses: actions/checkout@v4
@@ -30,7 +31,19 @@ jobs:
     - name: Install dependencies
       run: poetry install --with lint,typing,test,test_integration
     - name: Run tests
+      if: contains(matrix.endpoint, 'https://api.siliconflow.com')
       env:
-        SILICONFLOW_API_KEY: ${{ matrix.endpoint == 'https://api.siliconflow.com' && secrets.SILICONFLOW_GLOBAL_API_KEY || secrets.SILICONFLOW_CN_API_KEY }}
+        SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_GLOBAL_API_KEY }}
         SILICONFLOW_BASE_URL: ${{ matrix.endpoint }}
+      run: poetry run pytest
+    - name: Run tests
+      if: contains(matrix.endpoint, 'https://api.siliconflow.cn')
+      env:
+        SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_CN_API_KEY }}
+        SILICONFLOW_BASE_URL: ${{ matrix.endpoint }}
+      run: poetry run pytest
+    - name: Run tests
+      if: matrix.endpoint == 'default'
+      env:
+        SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_GLOBAL_API_KEY }}
       run: poetry run pytest
