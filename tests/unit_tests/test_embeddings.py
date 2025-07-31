@@ -6,7 +6,7 @@ from langchain_siliconflow.embeddings import SiliconFlowEmbeddings
 from langchain_tests.unit_tests import EmbeddingsUnitTests
 
 
-class TestParrotLinkEmbeddingsUnit(EmbeddingsUnitTests):
+class TestSiliconFlowEmbeddingsUnit(EmbeddingsUnitTests):
     @property
     def embeddings_class(self) -> Type[SiliconFlowEmbeddings]:
         return SiliconFlowEmbeddings
