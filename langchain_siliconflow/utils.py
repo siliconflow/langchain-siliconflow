@@ -20,7 +20,10 @@ def validate_environment(values: Dict[str, Any]) -> Dict[str, Any]:
         "SILICONFLOW_BASE_URL",
         "https://api.siliconflow.com"
     )
-    base_url = os.path.join(base_url, "v1") if not base_url.endswith("/v1") else base_url
+    # Normalize URL - strip trailing slashes and ensure proper format
+    base_url = base_url.rstrip("/")
+    if "siliconflow" in base_url and not base_url.endswith("/v1"):
+        base_url = f"{base_url}/v1"
     values["client"] = openai.OpenAI(
         api_key=api_key,
         base_url=base_url,
