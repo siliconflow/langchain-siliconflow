@@ -17,7 +17,7 @@ export SILICONFLOW_API_KEY="your-api-key"
 You can set the following environment variable to use the `.cn` endpoint:
 
 ```bash
-export SILICONFLOW_BASE_URL="https://api.siliconflow.cn"
+export SILICONFLOW_BASE_URL="https://api.siliconflow.cn/v1"
 ```
 
 ## Chat Models
