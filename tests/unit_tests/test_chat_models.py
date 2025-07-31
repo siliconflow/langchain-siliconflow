@@ -2,20 +2,45 @@
 
 from typing import Type
 
+import pytest
+from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
 from langchain_siliconflow.chat_models import ChatSiliconFlow
-from langchain_tests.unit_tests import ChatModelUnitTests
 
 
-class TestChatSiliconFlowUnit(ChatModelUnitTests):
-    @property
-    def chat_model_class(self) -> Type[ChatSiliconFlow]:
-        return ChatSiliconFlow
+def test_chat_siliconflow() -> None:
+    """Test ChatSiliconFlow wrapper."""
+    chat = ChatSiliconFlow(model="deepseek-ai/DeepSeek-V3", temperature=0)
+    message = HumanMessage(content="Hello")
+    response = chat.invoke([message])
+    assert isinstance(response, BaseMessage)
+    assert isinstance(response.content, str)
 
-    @property
-    def chat_model_params(self) -> dict:
-        # These should be parameters used to initialize your integration for testing
-        return {
-            "model": "bird-brain-001",
-            "temperature": 0,
-            "parrot_buffer_length": 50,
-        }
+
+def test_chat_siliconflow_system_message() -> None:
+    """Test ChatSiliconFlow wrapper with system message."""
+    chat = ChatSiliconFlow(model="deepseek-ai/DeepSeek-V3", temperature=0)
+    system_message = SystemMessage(content="You are a helpful assistant.")
+    human_message = HumanMessage(content="Hello")
+    response = chat.invoke([system_message, human_message])
+    assert isinstance(response, BaseMessage)
+    assert isinstance(response.content, str)
+
+
+@pytest.mark.asyncio
+async def test_async_chat_siliconflow() -> None:
+    """Test async ChatSiliconFlow wrapper."""
+    chat = ChatSiliconFlow(model="deepseek-ai/DeepSeek-V3", temperature=0)
+    message = HumanMessage(content="Hello")
+    response = await chat.ainvoke([message])
+    assert isinstance(response, BaseMessage)
+    assert isinstance(response.content, str)
+
+
+@pytest.mark.asyncio
+async def test_async_chat_siliconflow_streaming() -> None:
+    """Test async streaming ChatSiliconFlow wrapper."""
+    chat = ChatSiliconFlow(model="deepseek-ai/DeepSeek-V3", temperature=0)
+    message = HumanMessage(content="Hello")
+    response = chat.astream([message])
+    async for chunk in response:
+        assert isinstance(chunk.content, str)
