@@ -8,15 +8,15 @@ version = "0.1.0"
 description = "An integration package connecting SiliconFlow and LangChain"
 authors = []
 readme = "README.md"
-repository = "https://github.com/langchain-ai/langchain"
+repository = "https://github.com/siliconflow/langchain-siliconflow"
 license = "MIT"
 
 [tool.mypy]
 disallow_untyped_defs = "True"
 
 [tool.poetry.urls]
-"Source Code" = "https://github.com/langchain-ai/langchain/tree/master/libs/partners/siliconflow"
-"Release Notes" = "https://github.com/langchain-ai/langchain/releases?q=tag%3A%22siliconflow%3D%3D0%22&expanded=true"
+"Source Code" = "https://github.com/siliconflow/langchain-siliconflow"
+"Release Notes" = "https://github.com/siliconflow/langchain-siliconflow/releases"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<4.0"
