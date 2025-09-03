@@ -22,6 +22,7 @@ disallow_untyped_defs = "True"
 python = ">=3.9,<4.0"
 langchain-core = "^0.3.15"
 openai = "^1.98.0"
+langchain-openai = "^0.3.32"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "T201"]
@@ -33,6 +34,8 @@ omit = ["tests/*"]
 addopts = "--strict-markers --strict-config --durations=5"
 markers = [
     "compile: mark placeholder test used to compile integration tests without running them",
+    "scheduled: mark tests that run on a schedule rather than in every test run",
+    "flaky: mark tests that may fail intermittently",
 ]
 asyncio_mode = "auto"
 
