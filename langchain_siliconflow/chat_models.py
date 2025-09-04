@@ -1,143 +1,49 @@
 """SiliconFlow chat models."""
 
-import os
-from typing import Any, AsyncIterator, Dict, Iterator, List, Optional, cast
+from __future__ import annotations
+
+import json
+from collections.abc import Iterator
+from json import JSONDecodeError
+from typing import Any, Literal, Optional, TypeVar, Union
 
 import openai
 from langchain_core.callbacks import (
-    AsyncCallbackManagerForLLMRun,
     CallbackManagerForLLMRun,
 )
-from langchain_core.language_models import BaseChatModel
-from langchain_core.messages import (
-    AIMessage,
-    AIMessageChunk,
-    BaseMessage,
-    ChatMessage,
-    ChatMessageChunk,
-    FunctionMessage,
-    FunctionMessageChunk,
-    HumanMessage,
-    HumanMessageChunk,
-    SystemMessage,
-    SystemMessageChunk,
-    ToolMessage,
-    ToolMessageChunk,
-)
-from langchain_core.messages.ai import UsageMetadata
-from langchain_core.outputs import ChatGeneration, ChatGenerationChunk, ChatResult
-from langchain_core.utils import convert_to_secret_str, get_from_dict_or_env
-from typing import Union
+from langchain_core.language_models import LangSmithParams, LanguageModelInput
+from langchain_core.messages import AIMessageChunk, BaseMessage
+from langchain_core.outputs import ChatGenerationChunk, ChatResult
+from langchain_core.runnables import Runnable
+from langchain_core.utils import from_env, secret_from_env
+from langchain_openai.chat_models.base import BaseChatOpenAI
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
+from typing_extensions import Self
+
+DEFAULT_API_BASE = "https://api.siliconflow.com"
+DEFAULT_MODEL_NAME = "deepseek-ai/DeepSeek-V3.1"
+
+_BM = TypeVar("_BM", bound=BaseModel)
+_DictOrPydanticClass = Union[dict[str, Any], type[_BM], type]
+_DictOrPydantic = Union[dict, _BM]
 
 
-def _create_chat_result(
-    message: BaseMessage,
-    usage: Union[dict, None],
-    model_name: str
-) -> ChatResult:
-    """Create a ChatResult with standardized metadata."""
-    if usage:
-        message.usage_metadata = {
-            "input_tokens": usage.prompt_tokens,
-            "output_tokens": usage.completion_tokens,
-            "total_tokens": usage.total_tokens,
-            "input_token_details": {},
-            "output_token_details": {},
-            "model_name": model_name
-        }
-    message.response_metadata = {"model_name": model_name}
-    return ChatResult(
-        generations=[ChatGeneration(message=message)],
-        response_metadata={"model_name": model_name}
-    )
+class ChatSiliconFlow(BaseChatOpenAI):
+    """SiliconFlow chat model integration to access models hosted in SiliconFlow's API.
+    """  # noqa: E501
 
-from pydantic import Field, SecretStr, model_validator
-
-from langchain_siliconflow.utils import validate_environment
-
-
-def _convert_message_to_dict(message: BaseMessage) -> dict:
-    if isinstance(message, ChatMessage):
-        message_dict = {"role": message.role, "content": message.content}
-    elif isinstance(message, HumanMessage):
-        message_dict = {"role": "user", "content": message.content}
-    elif isinstance(message, AIMessage):
-        message_dict = {"role": "assistant", "content": message.content}
-        if "function_call" in message.additional_kwargs:
-            message_dict["function_call"] = message.additional_kwargs["function_call"]
-    elif isinstance(message, SystemMessage):
-        message_dict = {"role": "system", "content": message.content}
-    elif isinstance(message, FunctionMessage):
-        message_dict = {
-            "role": "function",
-            "content": message.content,
-            "name": message.name,
-        }
-    elif isinstance(message, ToolMessage):
-        message_dict = {
-            "role": "tool",
-            "content": message.content,
-            "tool_call_id": message.tool_call_id,
-        }
-    else:
-        raise TypeError(f"Got unknown message type: {message}")
-
-    if "name" in message.additional_kwargs:
-        message_dict["name"] = message.additional_kwargs["name"]
-    return message_dict
-
-
-def _convert_dict_to_message(_dict: dict) -> AIMessage:
-    role = _dict.get("role")
-    if role == "user":
-        return HumanMessage(content=_dict.get("content", ""))
-    elif role == "assistant":
-        content = _dict.get("content", "") or ""
-        additional_kwargs = {}
-        if _dict.get("function_call"):
-            additional_kwargs["function_call"] = dict(_dict["function_call"])
-        return AIMessage(content=content, additional_kwargs=additional_kwargs)
-    elif role == "system":
-        return SystemMessage(content=_dict.get("content", ""))
-    elif role == "function":
-        return FunctionMessage(content=_dict.get("content", ""), name=_dict.get("name"))
-    elif role == "tool":
-        return ToolMessage(
-            content=_dict.get("content", ""), tool_call_id=_dict.get("tool_call_id")
-        )
-    else:
-        return ChatMessage(content=_dict.get("content", ""), role=role)
-
-
-class ChatSiliconFlow(BaseChatModel):
-    """SiliconFlow chat model integration.
-
-    Setup:
-        Install ``langchain-siliconflow`` and set environment variable ``SILICONFLOW_API_KEY``.
-
-        .. code-block:: bash
-
-            pip install -U langchain-siliconflow
-            export SILICONFLOW_API_KEY="your-api-key"
-    """
-
-    model_name: str = Field(alias="model")
+    model_name: str = Field(alias="model", default=DEFAULT_MODEL_NAME)
     """The name of the model"""
-    temperature: Optional[float] = None
-    max_tokens: Optional[int] = None
-    timeout: Optional[int] = None
-    stop: Optional[List[str]] = None
-    max_retries: int = 2
+    api_key: Optional[SecretStr] = Field(
+        default_factory=secret_from_env("SILICONFLOW_API_KEY", default=None),
+    )
+    """SiliconFlow API key"""
+    api_base: str = Field(
+        default_factory=from_env("SILICONFLOW_BASE_URL", default=DEFAULT_API_BASE),
+    )
+    """SiliconFlow API base URL"""
 
-    siliconflow_api_key: Optional[SecretStr] = None
-
-    client: openai.OpenAI
-    async_client: openai.AsyncOpenAI
-
-    @model_validator(mode="before")
-    @classmethod
-    def validate_environment(cls, values: Dict) -> Dict:
-        return validate_environment(values)
+    model_config = ConfigDict(populate_by_name=True)
 
     @property
     def _llm_type(self) -> str:
@@ -145,100 +51,166 @@ class ChatSiliconFlow(BaseChatModel):
         return "chat-siliconflow"
 
     @property
-    def _identifying_params(self) -> Dict[str, Any]:
-        """Return a dictionary of identifying parameters."""
-        return {
-            "model_name": self.model_name,
+    def lc_secrets(self) -> dict[str, str]:
+        """A map of constructor argument names to secret ids."""
+        return {"api_key": "SILICONFLOW_API_KEY"}
+
+    def _get_ls_params(
+        self,
+        stop: Optional[list[str]] = None,
+        **kwargs: Any,
+    ) -> LangSmithParams:
+        ls_params = super()._get_ls_params(stop=stop, **kwargs)
+        ls_params["ls_provider"] = "siliconflow"
+        return ls_params
+
+    @model_validator(mode="after")
+    def validate_environment(self) -> Self:
+        if self.api_base == DEFAULT_API_BASE and not (
+            self.api_key and self.api_key.get_secret_value()
+        ):
+            msg = "If using default api base, SILICONFLOW_API_KEY must be set."
+            raise ValueError(msg)
+        client_params: dict = {
+            k: v
+            for k, v in {
+                "api_key": self.api_key.get_secret_value() if self.api_key else None,
+                "base_url": self.api_base,
+                "timeout": self.request_timeout,
+                "max_retries": self.max_retries,
+                "default_headers": self.default_headers,
+                "default_query": self.default_query,
+            }.items()
+            if v is not None
         }
 
-    def _generate(
+        if not (self.client or None):
+            sync_specific: dict = {"http_client": self.http_client}
+            self.root_client = openai.OpenAI(**client_params, **sync_specific)
+            self.client = self.root_client.chat.completions
+        if not (self.async_client or None):
+            async_specific: dict = {"http_client": self.http_async_client}
+            self.root_async_client = openai.AsyncOpenAI(
+                **client_params,
+                **async_specific,
+            )
+            self.async_client = self.root_async_client.chat.completions
+        return self
+
+    def _get_request_payload(
         self,
-        messages: List[BaseMessage],
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[CallbackManagerForLLMRun] = None,
+        input_: LanguageModelInput,
+        *,
+        stop: Optional[list[str]] = None,
         **kwargs: Any,
+    ) -> dict:
+        payload = super()._get_request_payload(input_, stop=stop, **kwargs)
+        for message in payload["messages"]:
+            if message["role"] == "tool" and isinstance(message["content"], list):
+                message["content"] = json.dumps(message["content"])
+        return payload
+
+    def _create_chat_result(
+        self,
+        response: Union[dict, openai.BaseModel],
+        generation_info: Optional[dict] = None,
     ) -> ChatResult:
-        message_dicts = [_convert_message_to_dict(m) for m in messages]
-        response = self.client.chat.completions.create(
-            model=self.model_name,
-            messages=message_dicts,
-            **kwargs,
+        rtn = super()._create_chat_result(response, generation_info)
+
+        if not isinstance(response, openai.BaseModel):
+            return rtn
+
+        choices = getattr(response, "choices", None)
+        if choices and hasattr(choices[0].message, "reasoning_content"):
+            rtn.generations[0].message.additional_kwargs["reasoning_content"] = choices[
+                0
+            ].message.reasoning_content
+        # Handle use via OpenRouter
+        elif choices and hasattr(choices[0].message, "model_extra"):
+            model_extra = choices[0].message.model_extra
+            if isinstance(model_extra, dict) and (
+                reasoning := model_extra.get("reasoning")
+            ):
+                rtn.generations[0].message.additional_kwargs["reasoning_content"] = (
+                    reasoning
+                )
+
+        return rtn
+
+    def _convert_chunk_to_generation_chunk(
+        self,
+        chunk: dict,
+        default_chunk_class: type,
+        base_generation_info: Optional[dict],
+    ) -> Optional[ChatGenerationChunk]:
+        generation_chunk = super()._convert_chunk_to_generation_chunk(
+            chunk,
+            default_chunk_class,
+            base_generation_info,
         )
-        message = _convert_dict_to_message(response.choices[0].message.model_dump())
-        return _create_chat_result(message, response.usage, self.model_name)
+        if (choices := chunk.get("choices")) and generation_chunk:
+            top = choices[0]
+            if isinstance(generation_chunk.message, AIMessageChunk):
+                if (
+                    reasoning_content := top.get("delta", {}).get("reasoning_content")
+                ) is not None:
+                    generation_chunk.message.additional_kwargs["reasoning_content"] = (
+                        reasoning_content
+                    )
+                # Handle use via OpenRouter
+                elif (reasoning := top.get("delta", {}).get("reasoning")) is not None:
+                    generation_chunk.message.additional_kwargs["reasoning_content"] = (
+                        reasoning
+                    )
+
+        return generation_chunk
 
     def _stream(
         self,
-        messages: List[BaseMessage],
-        stop: Optional[List[str]] = None,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> Iterator[ChatGenerationChunk]:
-        message_dicts = [_convert_message_to_dict(m) for m in messages]
-        first_chunk = True
-        for chunk in self.client.chat.completions.create(
-            model=self.model_name,
-            messages=message_dicts,
-            stream=True,
-            **kwargs,
-        ):
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
-            msg = AIMessageChunk(content=delta.content)
-            if first_chunk and chunk.usage:
-                msg.usage_metadata = {
-                    "input_tokens": chunk.usage.prompt_tokens,
-                    "output_tokens": chunk.usage.completion_tokens,
-                    "total_tokens": chunk.usage.total_tokens,
-                    "model_name": self.model_name
-                }
-            msg.response_metadata = {"model_name": self.model_name}
-            yield ChatGenerationChunk(message=msg)
-            first_chunk = False
+        try:
+            yield from super()._stream(
+                messages,
+                stop=stop,
+                run_manager=run_manager,
+                **kwargs,
+            )
+        except JSONDecodeError as e:
+            msg = (
+                "SiliconFlow API returned an invalid response. "
+                "Please check the API status and try again."
+            )
+            raise JSONDecodeError(
+                msg,
+                e.doc,
+                e.pos,
+            ) from e
 
-    async def _agenerate(
+    def _generate(
         self,
-        messages: List[BaseMessage],
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> ChatResult:
-        message_dicts = [_convert_message_to_dict(m) for m in messages]
-        response = await self.async_client.chat.completions.create(
-            model=self.model_name,
-            messages=message_dicts,
-            **kwargs,
-        )
-        message = _convert_dict_to_message(response.choices[0].message.model_dump())
-        return _create_chat_result(message, response.usage, self.model_name)
-
-    async def _astream(
-        self,
-        messages: List[BaseMessage],
-        stop: Optional[List[str]] = None,
-        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
-        **kwargs: Any,
-    ) -> AsyncIterator[ChatGenerationChunk]:
-        message_dicts = [_convert_message_to_dict(m) for m in messages]
-        first_chunk = True
-        async for chunk in await self.async_client.chat.completions.create(
-            model=self.model_name,
-            messages=message_dicts,
-            stream=True,
-            **kwargs,
-        ):
-            if not chunk.choices:
-                continue
-            delta = chunk.choices[0].delta
-            msg = AIMessageChunk(content=delta.content)
-            if first_chunk and chunk.usage:
-                msg.usage_metadata = {
-                    "input_tokens": chunk.usage.prompt_tokens,
-                    "output_tokens": chunk.usage.completion_tokens,
-                    "total_tokens": chunk.usage.total_tokens,
-                    "model_name": self.model_name
-                }
-            msg.response_metadata = {"model_name": self.model_name}
-            yield ChatGenerationChunk(message=msg)
-            first_chunk = False
+        try:
+            return super()._generate(
+                messages,
+                stop=stop,
+                run_manager=run_manager,
+                **kwargs,
+            )
+        except JSONDecodeError as e:
+            msg = (
+                "SiliconFlow API returned an invalid response. "
+                "Please check the API status and try again."
+            )
+            raise JSONDecodeError(
+                msg,
+                e.doc,
+                e.pos,
+            ) from e
