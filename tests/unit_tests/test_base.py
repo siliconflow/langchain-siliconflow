@@ -35,7 +35,7 @@ class MakeASandwich(BaseModel):
 @pytest.mark.parametrize("strict", [True, False, None])
 def test_bind_tools_tool_choice(tool_choice: Any, strict: Optional[bool]) -> None:
     """Test passing in manually construct tool call message."""
-    llm = ChatSiliconFlow(model="deepseek-ai/DeepSeek-V3", temperature=0)
+    llm = ChatSiliconFlow(model="deepseek-ai/DeepSeek-V3.1", temperature=0)
     llm.bind_tools(
         tools=[GenerateUsername, MakeASandwich], tool_choice=tool_choice, strict=strict
     )
