@@ -15,6 +15,6 @@ class TestChatChatSiliconFlowIntegration(ChatModelIntegrationTests):
     def chat_model_params(self) -> dict:
         # These should be parameters used to initialize your integration for testing
         return {
-            "model": "deepseek-ai/DeepSeek-V3",
+            "model": "deepseek-ai/DeepSeek-V3.1",
             "temperature": 0
         }
