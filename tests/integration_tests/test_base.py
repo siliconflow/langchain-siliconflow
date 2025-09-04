@@ -41,7 +41,7 @@ def test_chat_openai() -> None:
     """Test ChatOpenAI wrapper."""
     chat = ChatOpenAI(
         temperature=0.7,
-        base_url=None,
+        base_url="https://api.siliconflow.cn/v1",
         organization=None,
         openai_proxy=None,
         timeout=10.0,

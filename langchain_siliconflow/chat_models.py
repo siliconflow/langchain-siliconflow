@@ -38,7 +38,7 @@ class ChatSiliconFlow(BaseChatOpenAI):
         default_factory=secret_from_env("SILICONFLOW_API_KEY", default=None),
     )
     """SiliconFlow API key"""
-    api_base: str = Field(
+    base_url: str = Field(
         default_factory=from_env("SILICONFLOW_BASE_URL", default=DEFAULT_API_BASE),
     )
     """SiliconFlow API base URL"""
@@ -66,16 +66,11 @@ class ChatSiliconFlow(BaseChatOpenAI):
 
     @model_validator(mode="after")
     def validate_environment(self) -> Self:
-        if self.api_base == DEFAULT_API_BASE and not (
-            self.api_key and self.api_key.get_secret_value()
-        ):
-            msg = "If using default api base, SILICONFLOW_API_KEY must be set."
-            raise ValueError(msg)
         client_params: dict = {
             k: v
             for k, v in {
                 "api_key": self.api_key.get_secret_value() if self.api_key else None,
-                "base_url": self.api_base,
+                "base_url": self.base_url,
                 "timeout": self.request_timeout,
                 "max_retries": self.max_retries,
                 "default_headers": self.default_headers,
