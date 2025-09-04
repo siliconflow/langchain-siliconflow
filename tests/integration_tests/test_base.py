@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 
 from langchain_siliconflow.chat_models import ChatSiliconFlow as ChatOpenAI
 from .callbacks import FakeCallbackHandler
+import os
 
 MAX_TOKEN_COUNT = 16
 MODEL_NAME = "deepseek-ai/DeepSeek-V3.1"
@@ -41,7 +42,7 @@ def test_chat_openai() -> None:
     """Test ChatOpenAI wrapper."""
     chat = ChatOpenAI(
         temperature=0.7,
-        base_url="https://api.siliconflow.cn/v1",
+        base_url=os.getenv("SILICONFLOW_BASE_URL", default="https://api.siliconflow.com/v1"),
         organization=None,
         openai_proxy=None,
         timeout=10.0,
