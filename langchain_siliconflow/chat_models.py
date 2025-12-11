@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from collections.abc import Iterator
 from json import JSONDecodeError
-from typing import Any, Literal, Optional, TypeVar, Union
+from typing import Any, Optional, TypeVar, Union
 
 import openai
 from langchain_core.callbacks import (
@@ -14,7 +14,6 @@ from langchain_core.callbacks import (
 from langchain_core.language_models import LangSmithParams, LanguageModelInput
 from langchain_core.messages import AIMessageChunk, BaseMessage
 from langchain_core.outputs import ChatGenerationChunk, ChatResult
-from langchain_core.runnables import Runnable
 from langchain_core.utils import from_env, secret_from_env
 from langchain_openai.chat_models.base import BaseChatOpenAI
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, model_validator
@@ -29,8 +28,7 @@ _DictOrPydantic = Union[dict, _BM]
 
 
 class ChatSiliconFlow(BaseChatOpenAI):
-    """SiliconFlow chat model integration to access models hosted in SiliconFlow's API.
-    """  # noqa: E501
+    """SiliconFlow chat model integration to access models hosted in SiliconFlow's API."""  # noqa: E501
 
     model_name: str = Field(alias="model", default=DEFAULT_MODEL_NAME)
     """The name of the model"""
@@ -167,13 +165,34 @@ class ChatSiliconFlow(BaseChatOpenAI):
         run_manager: Optional[CallbackManagerForLLMRun] = None,
         **kwargs: Any,
     ) -> Iterator[ChatGenerationChunk]:
+        """Stream chat completions from SiliconFlow.
+
+        SiliconFlow API returns usage metadata in every chunk, but langchain
+        expects input_tokens to only be set in one chunk to avoid overcounting.
+        This method ensures input_tokens is only included in the first chunk.
+        """
         try:
-            yield from super()._stream(
+            first_chunk_with_usage = True
+            for chunk in super()._stream(
                 messages,
                 stop=stop,
                 run_manager=run_manager,
                 **kwargs,
-            )
+            ):
+                # SiliconFlow returns input_tokens in every chunk, but we should
+                # only include it in the first chunk to avoid overcounting
+                if chunk.message.usage_metadata and chunk.message.usage_metadata.get(
+                    "input_tokens"
+                ):
+                    if first_chunk_with_usage:
+                        first_chunk_with_usage = False
+                    else:
+                        # Zero out input_tokens for subsequent chunks
+                        chunk.message.usage_metadata["input_tokens"] = 0
+                        chunk.message.usage_metadata["total_tokens"] = (
+                            chunk.message.usage_metadata.get("output_tokens", 0)
+                        )
+                yield chunk
         except JSONDecodeError as e:
             msg = (
                 "SiliconFlow API returned an invalid response. "
