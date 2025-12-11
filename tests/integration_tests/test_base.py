@@ -336,15 +336,15 @@ def test_openai_structured_output(model: str) -> None:
 
 def test_image_token_counting_jpeg() -> None:
     model = ChatOpenAI(model=VISION_MODEL_NAME, temperature=0)
-    image_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+    image_url = "https://sf-maas.s3.us-east-1.amazonaws.com/images/recDq23epr.png"
     image_data = base64.b64encode(httpx.get(image_url).content).decode("utf-8")
     message = HumanMessage(
         content=[
-            {"type": "text", "text": "describe the weather in this image"},
             {
                 "type": "image_url",
                 "image_url": {"url": f"data:image/jpeg;base64,{image_data}"},
             },
+            {"type": "text", "text": "describe this image in detail"},
         ]
     )
     expected = cast(AIMessage, model.invoke([message])).usage_metadata[  # type: ignore[index]
