@@ -1,9 +1,10 @@
 from typing import Generator
 
 import pytest
-from langchain_siliconflow.vectorstores import SiliconFlowVectorStore
 from langchain_core.vectorstores import VectorStore
 from langchain_tests.integration_tests import VectorStoreIntegrationTests
+
+from langchain_siliconflow.vectorstores import SiliconFlowVectorStore
 
 
 class TestSiliconFlowVectorStore(VectorStoreIntegrationTests):

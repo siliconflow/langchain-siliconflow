@@ -2,8 +2,9 @@
 
 from typing import Type
 
-from langchain_siliconflow.embeddings import SiliconFlowEmbeddings
 from langchain_tests.unit_tests import EmbeddingsUnitTests
+
+from langchain_siliconflow.embeddings import SiliconFlowEmbeddings
 
 
 class TestSiliconFlowEmbeddingsUnit(EmbeddingsUnitTests):

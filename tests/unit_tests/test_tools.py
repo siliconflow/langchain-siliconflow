@@ -1,7 +1,8 @@
 from typing import Type
 
-from langchain_siliconflow.tools import SiliconFlowTool
 from langchain_tests.unit_tests import ToolsUnitTests
+
+from langchain_siliconflow.tools import SiliconFlowTool
 
 
 class TestParrotMultiplyToolUnit(ToolsUnitTests):
