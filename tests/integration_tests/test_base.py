@@ -2,15 +2,12 @@
 
 import base64
 import json
+import os
 from collections.abc import AsyncIterator
-from pathlib import Path
-from textwrap import dedent
-from typing import Any, Literal, Optional, cast
+from typing import Literal, Optional, cast
 
 import httpx
-import openai
 import pytest
-from langchain_core.callbacks import CallbackManager
 from langchain_core.messages import (
     AIMessage,
     AIMessageChunk,
@@ -21,7 +18,6 @@ from langchain_core.messages import (
     ToolCall,
     ToolMessage,
 )
-from langchain_core.outputs import ChatGeneration, ChatResult, LLMResult
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_tests.integration_tests.chat_models import (
     _validate_tool_call_message,
@@ -30,19 +26,22 @@ from langchain_tests.integration_tests.chat_models import (
 from pydantic import BaseModel, Field
 
 from langchain_siliconflow.chat_models import ChatSiliconFlow as ChatOpenAI
+
 from .callbacks import FakeCallbackHandler
-import os
 
 MAX_TOKEN_COUNT = 16
 MODEL_NAME = "deepseek-ai/DeepSeek-V3.1"
 VISION_MODEL_NAME = "zai-org/GLM-4.5V"
+
 
 @pytest.mark.scheduled
 def test_chat_openai() -> None:
     """Test ChatOpenAI wrapper."""
     chat = ChatOpenAI(
         temperature=0.7,
-        base_url=os.getenv("SILICONFLOW_BASE_URL", default="https://api.siliconflow.com/v1"),
+        base_url=os.getenv(
+            "SILICONFLOW_BASE_URL", default="https://api.siliconflow.com/v1"
+        ),
         organization=None,
         openai_proxy=None,
         timeout=10.0,
@@ -83,12 +82,11 @@ def test_chat_openai_system_message(use_responses_api: bool) -> None:
 def test_chat_openai_streaming(use_responses_api: bool) -> None:
     """Test that streaming correctly invokes on_llm_new_token callback."""
     callback_handler = FakeCallbackHandler()
-    callback_manager = CallbackManager([callback_handler])
     chat = ChatOpenAI(
         max_tokens=MAX_TOKEN_COUNT,  # type: ignore[call-arg]
         streaming=True,
         temperature=0,
-        callback_manager=callback_manager,
+        callbacks=[callback_handler],
         verbose=True,
         use_responses_api=use_responses_api,
     )
@@ -117,8 +115,8 @@ def test_chat_openai_streaming_llm_output_contains_model_name() -> None:
 
 
 @pytest.mark.scheduled
-async def test_async_chat_openai_bind_functions() -> None:
-    """Test ChatOpenAI wrapper with multiple completions."""
+async def test_async_chat_openai_bind_tools() -> None:
+    """Test ChatOpenAI wrapper with bind_tools."""
 
     class Person(BaseModel):
         """Identifying information about a person."""
@@ -129,8 +127,8 @@ async def test_async_chat_openai_bind_functions() -> None:
             default=None, title="Fav Food", description="The person's favorite food"
         )
 
-    chat = ChatOpenAI(max_tokens=30, n=1, streaming=True).bind_functions(  # type: ignore[call-arg]
-        functions=[Person], function_call="Person"
+    chat = ChatOpenAI(max_tokens=30, n=1, streaming=True).bind_tools(  # type: ignore[call-arg]
+        tools=[Person], tool_choice={"type": "function", "function": {"name": "Person"}}
     )
 
     prompt = ChatPromptTemplate.from_messages(
@@ -274,6 +272,7 @@ class MakeASandwich(BaseModel):
     condiments: list[str]
     vegetables: list[str]
 
+
 @pytest.mark.parametrize("use_responses_api", [False])
 def test_manual_tool_call_msg(use_responses_api: bool) -> None:
     """Test passing in manually construct tool call message."""
@@ -292,7 +291,7 @@ def test_manual_tool_call_msg(use_responses_api: bool) -> None:
                     id="foo",
                 )
             ],
-            tool_choice="required"
+            tool_choice="required",
         ),
         ToolMessage("sally_green_hair", tool_call_id="foo"),
     ]
@@ -300,6 +299,7 @@ def test_manual_tool_call_msg(use_responses_api: bool) -> None:
     assert output.content
     # Should not have called the tool again.
     assert not output.tool_calls and not output.invalid_tool_calls
+
 
 @pytest.mark.parametrize("use_responses_api", [False])
 def test_bind_tools_tool_choice(use_responses_api: bool) -> None:
@@ -333,17 +333,18 @@ def test_openai_structured_output(model: str) -> None:
     assert result.name == "Erick"
     assert result.age == 27
 
+
 def test_image_token_counting_jpeg() -> None:
     model = ChatOpenAI(model=VISION_MODEL_NAME, temperature=0)
-    image_url = "https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/2560px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+    image_url = "https://sf-maas.s3.us-east-1.amazonaws.com/images/recDq23epr.png"
     image_data = base64.b64encode(httpx.get(image_url).content).decode("utf-8")
     message = HumanMessage(
         content=[
-            {"type": "text", "text": "describe the weather in this image"},
             {
                 "type": "image_url",
                 "image_url": {"url": f"data:image/jpeg;base64,{image_data}"},
             },
+            {"type": "text", "text": "describe this image in detail"},
         ]
     )
     expected = cast(AIMessage, model.invoke([message])).usage_metadata[  # type: ignore[index]
@@ -538,9 +539,7 @@ class Foo(BaseModel):
 def test_stream_response_format() -> None:
     full: Optional[BaseMessageChunk] = None
     chunks = []
-    for chunk in ChatOpenAI(model=MODEL_NAME).stream(
-        "how are ya", response_format=Foo
-    ):
+    for chunk in ChatOpenAI(model=MODEL_NAME).stream("how are ya", response_format=Foo):
         chunks.append(chunk)
         full = chunk if full is None else full + chunk
     assert len(chunks) > 1
@@ -567,6 +566,7 @@ async def test_astream_response_format() -> None:
     assert isinstance(full.content, str)
     parsed_content = json.loads(full.content)
     assert parsed.response == parsed_content["response"]
+
 
 @pytest.mark.skip(reason="This test is temporarily disabled.")
 def test_structured_output_and_tools() -> None:
@@ -600,7 +600,11 @@ def test_tools_and_structured_output() -> None:
         explanation: str
 
     llm = ChatOpenAI(model=MODEL_NAME).with_structured_output(
-        ResponseFormat, strict=True, include_raw=True, tools=[GenerateUsername], tool_choice="required"
+        ResponseFormat,
+        strict=True,
+        include_raw=True,
+        tools=[GenerateUsername],
+        tool_choice="required",
     )
 
     expected_keys = {"raw", "parsing_error", "parsed"}

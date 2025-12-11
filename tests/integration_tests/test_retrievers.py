@@ -1,9 +1,10 @@
 from typing import Type
 
-from langchain_siliconflow.retrievers import SiliconFlowRetriever
 from langchain_tests.integration_tests import (
     RetrieversIntegrationTests,
 )
+
+from langchain_siliconflow.retrievers import SiliconFlowRetriever
 
 
 class TestSiliconFlowRetriever(RetrieversIntegrationTests):

@@ -1,9 +1,7 @@
 from typing import Any, Dict, List, Optional
 
-import openai
 from langchain_core.embeddings import Embeddings
-from pydantic import BaseModel, Field, SecretStr, model_validator
-from langchain_core.utils import convert_to_secret_str, get_from_dict_or_env
+from pydantic import BaseModel, SecretStr, model_validator
 
 from langchain_siliconflow.utils import validate_environment
 

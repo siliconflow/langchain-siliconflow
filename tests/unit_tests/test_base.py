@@ -1,7 +1,10 @@
-from langchain_siliconflow.chat_models import ChatSiliconFlow
+from typing import Any, Optional
+
 import pytest
-from typing import Any, Literal, Optional, Union, cast
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel
+
+from langchain_siliconflow.chat_models import ChatSiliconFlow
+
 
 class GenerateUsername(BaseModel):
     "Get a username based on someone's name and hair color."

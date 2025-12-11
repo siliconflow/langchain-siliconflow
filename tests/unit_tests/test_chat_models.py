@@ -1,9 +1,9 @@
 """Test chat model integration."""
 
-from typing import Type
 
 import pytest
 from langchain_core.messages import BaseMessage, HumanMessage, SystemMessage
+
 from langchain_siliconflow.chat_models import ChatSiliconFlow
 
 
