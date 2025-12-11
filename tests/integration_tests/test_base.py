@@ -115,8 +115,8 @@ def test_chat_openai_streaming_llm_output_contains_model_name() -> None:
 
 
 @pytest.mark.scheduled
-async def test_async_chat_openai_bind_functions() -> None:
-    """Test ChatOpenAI wrapper with multiple completions."""
+async def test_async_chat_openai_bind_tools() -> None:
+    """Test ChatOpenAI wrapper with bind_tools."""
 
     class Person(BaseModel):
         """Identifying information about a person."""
@@ -127,8 +127,8 @@ async def test_async_chat_openai_bind_functions() -> None:
             default=None, title="Fav Food", description="The person's favorite food"
         )
 
-    chat = ChatOpenAI(max_tokens=30, n=1, streaming=True).bind_functions(  # type: ignore[call-arg]
-        functions=[Person], function_call="Person"
+    chat = ChatOpenAI(max_tokens=30, n=1, streaming=True).bind_tools(  # type: ignore[call-arg]
+        tools=[Person], tool_choice={"type": "function", "function": {"name": "Person"}}
     )
 
     prompt = ChatPromptTemplate.from_messages(
