@@ -33,15 +33,15 @@ jobs:
       env:
         SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_GLOBAL_API_KEY }}
         SILICONFLOW_BASE_URL: ${{ matrix.endpoint }}
-      run: uv run pytest
+      run: uv run pytest -v
     - name: Run tests
       if: contains(matrix.endpoint, 'https://api.siliconflow.cn')
       env:
         SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_CN_API_KEY }}
         SILICONFLOW_BASE_URL: ${{ matrix.endpoint }}
-      run: uv run pytest
+      run: uv run pytest -v
     - name: Run tests
       if: matrix.endpoint == 'default'
       env:
         SILICONFLOW_API_KEY: ${{ secrets.SILICONFLOW_GLOBAL_API_KEY }}
-      run: uv run pytest
+      run: uv run pytest -v
