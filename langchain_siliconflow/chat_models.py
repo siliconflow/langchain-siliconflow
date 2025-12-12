@@ -167,31 +167,39 @@ class ChatSiliconFlow(BaseChatOpenAI):
     ) -> Iterator[ChatGenerationChunk]:
         """Stream chat completions from SiliconFlow.
 
-        SiliconFlow API returns usage metadata in every chunk, but langchain
-        expects input_tokens to only be set in one chunk to avoid overcounting.
-        This method ensures input_tokens is only included in the first chunk.
+        SiliconFlow API returns cumulative usage metadata in every chunk.
+        LangChain aggregates these by summing them. To prevent overcounting,
+        we must convert the cumulative values into deltas before yielding.
         """
+        # Track the last seen cumulative totals
+        last_input_tokens = 0
+        last_output_tokens = 0
         try:
-            first_chunk_with_usage = True
             for chunk in super()._stream(
                 messages,
                 stop=stop,
                 run_manager=run_manager,
                 **kwargs,
             ):
-                # SiliconFlow returns input_tokens in every chunk, but we should
-                # only include it in the first chunk to avoid overcounting
-                if chunk.message.usage_metadata and chunk.message.usage_metadata.get(
-                    "input_tokens"
-                ):
-                    if first_chunk_with_usage:
-                        first_chunk_with_usage = False
-                    else:
-                        # Zero out input_tokens for subsequent chunks
-                        chunk.message.usage_metadata["input_tokens"] = 0
-                        chunk.message.usage_metadata["total_tokens"] = (
-                            chunk.message.usage_metadata.get("output_tokens", 0)
-                        )
+                if chunk.message.usage_metadata:
+                    # 1. Get the current cumulative totals from the API response
+                    current_input = chunk.message.usage_metadata.get("input_tokens", 0)
+                    current_output = chunk.message.usage_metadata.get("output_tokens", 0)
+
+                    # 2. Calculate the delta (New - Old)
+                    # This effectively "strips" the already-counted tokens from this chunk
+                    input_delta = current_input - last_input_tokens
+                    output_delta = current_output - last_output_tokens
+
+                    # 3. Update the chunk with the calculated deltas
+                    chunk.message.usage_metadata["input_tokens"] = input_delta
+                    chunk.message.usage_metadata["output_tokens"] = output_delta
+                    chunk.message.usage_metadata["total_tokens"] = input_delta + output_delta
+
+                    # 4. Update state for the next iteration
+                    last_input_tokens = current_input
+                    last_output_tokens = current_output
+
                 yield chunk
         except JSONDecodeError as e:
             msg = (
@@ -228,3 +236,42 @@ class ChatSiliconFlow(BaseChatOpenAI):
                 e.doc,
                 e.pos,
             ) from e
+
+    async def _astream(
+        self,
+        messages: list[BaseMessage],
+        stop: Optional[list[str]] = None,
+        run_manager: Optional[AsyncCallbackManagerForLLMRun] = None,
+        **kwargs: Any,
+    ) -> AsyncIterator[ChatGenerationChunk]:
+        """Async stream chat completions from SiliconFlow.
+
+        Applies the same delta logic as _stream to prevent overcounting usage.
+        """
+        last_input_tokens = 0
+        last_output_tokens = 0
+        try:
+            async for chunk in super()._astream(
+                messages,
+                stop=stop,
+                run_manager=run_manager,
+                **kwargs,
+            ):
+                if chunk.message.usage_metadata:
+                    current_input = chunk.message.usage_metadata.get("input_tokens", 0)
+                    current_output = chunk.message.usage_metadata.get("output_tokens", 0)
+
+                    input_delta = current_input - last_input_tokens
+                    output_delta = current_output - last_output_tokens
+
+                    chunk.message.usage_metadata["input_tokens"] = input_delta
+                    chunk.message.usage_metadata["output_tokens"] = output_delta
+                    chunk.message.usage_metadata["total_tokens"] = input_delta + output_delta
+
+                    last_input_tokens = current_input
+                    last_output_tokens = current_output
+
+                yield chunk
+        except JSONDecodeError as e:
+            msg = "SiliconFlow API returned an invalid response."
+            raise JSONDecodeError(msg, e.doc, e.pos) from e
