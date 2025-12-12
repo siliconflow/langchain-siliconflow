@@ -2,6 +2,16 @@
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
+[project]
+name = "langchain-siliconflow"
+version = "0.2.3"
+description = "An integration package connecting SiliconFlow and LangChain"
+readme = "README.md"
+requires-python = ">=3.10,<4.0"
+license = { text = "MIT" }
+authors = []
+urls = { "Source Code" = "https://github.com/siliconflow/langchain-siliconflow", "Release Notes" = "https://github.com/siliconflow/langchain-siliconflow/releases" }
+
 [tool.poetry]
 name = "langchain-siliconflow"
 version = "0.2.3"
